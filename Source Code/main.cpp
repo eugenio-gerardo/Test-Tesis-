@@ -169,7 +169,8 @@ class Queue_System
         }
         bool simulation_stop()
         {
-            return this->num_cust_delayed==100;
+            //return this->num_cust_delayed==100;
+            return this->event==20;
         }
         void update_counters()
         {
@@ -213,6 +214,7 @@ class Queue_System
         }
         void debug(string q_event)
         {
+            cout<<"Event Number:"<<this->event++<<endl;
             cout<<"Simulation Time:"<<sim_clock<<endl;
             cout<<"Event:"<<q_event<<endl;
             cout<<"Server Status:"<<server.isBusy()<<endl;
@@ -238,7 +240,7 @@ class Queue_System
             {
                 cout<<"Depart"<<endl;
             }
-            cin.get();
+            //cin.get();
         }
         void simulate()
         {
