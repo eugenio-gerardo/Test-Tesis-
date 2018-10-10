@@ -138,9 +138,7 @@ class Queue_System
         double total_of_delays;
         double area_num_inq;
         double area_server_status;
-
-        int a;
-        int d;
+        int event;
 
     public:
         Queue_System(double interarrival_mean, double service_mean)
@@ -155,8 +153,7 @@ class Queue_System
             this->total_of_delays=0;
             this->area_num_inq=0;
             this->area_server_status=0;
-            a=0;
-            d=0;
+            event=1;
         }
         bool simulation_stop()
         {
@@ -204,18 +201,32 @@ class Queue_System
                 this->custumer_queue.front().set_service_time(this->server.Generate_Service(this->sim_clock));
             }
         }
-        void debug()
+        void debug(string q_event)
         {
-            cout<<"Sim_clock:"<<sim_clock<<endl;
-            cout<<"size:"<<this->queue_size<<endl;
-            cout<<"server status:"<<server.isBusy()<<endl;
+            cout<<"Simulation Time:"<<sim_clock<<endl;
+            cout<<"Event:"<<q_event<<endl;
+            cout<<"Server Status:"<<server.isBusy()<<endl;
+            cout<<"Queue Size:"<<this->queue_size<<endl;
             auto custumer_queue_aux=this->custumer_queue;
+            int i=1;
             while(!custumer_queue_aux.empty())
             {
-                cout<<"Client"<<endl;
-                cout<<"Arrival_Time:"<<custumer_queue_aux.front().get_arrival_time()<<endl;
-                cout<<"Service_Time:"<<custumer_queue_aux.front().get_service_time()<<endl;
+                cout<<"\tClient"<<i<<endl;
+                cout<<"\t\tArrival_Time:"<<custumer_queue_aux.front().get_arrival_time()<<endl;
+                cout<<"\t\tService_Time:"<<custumer_queue_aux.front().get_service_time()<<endl;
                 custumer_queue_aux.pop();
+                i++;
+            }
+            cout<<"Next Arrive:"<<this->custumer_queue.back().get_arrival_time()<<endl;
+            cout<<"Next Depart:"<<this->custumer_queue.front().get_service_time()<<endl;
+            cout<<"Next Event:";
+            if (this->custumer_queue.back().get_arrival_time()<this->custumer_queue.front().get_service_time())
+            {
+                cout<<"Arrive"<<endl;
+            }
+            else
+            {
+                cout<<"Depart"<<endl;
             }
             cin.get();
         }
@@ -225,17 +236,15 @@ class Queue_System
             while(!simulation_stop())
             {
                 this->update_counters();
-                if(this->custumer_queue.front().get_service_time()>this->custumer_queue.back().get_arrival_time())
+                if(this->custumer_queue.back().get_arrival_time()<this->custumer_queue.front().get_service_time())
                     {
                         this->arrive();
-                        cout<<"Arrive:"<<a++<<endl;
-                        debug();
+                        debug("Arrive");
                     }
                 else
                     {
                         this->depart();
-                        cout<<"Depart:"<<d++<<endl;
-                        debug();
+                        debug("Depart");
                     }
             }
             this->report();
@@ -250,29 +259,6 @@ class Queue_System
 
 int main()
 {
-    /*
-    QueueParameters a1, a2;
-    ifstream fe("/home/eugenio/Downloads/mm12.out",ios::in | ios::binary);
-    ofstream fsalida("/home/eugenio/Downloads/mm12.out", ios::out | ios::binary);
-    a1.mean_interarrival=1;
-    a1.mean_service=.5;
-    a1.num_delays_required=1000;
-    fsalida.write(reinterpret_cast<char *>(&a1), sizeof(QueueParameters));
-    fsalida.close();
-    fe.read(reinterpret_cast<char *>(&a2), sizeof(QueueParameters));
-    cout<<a2.mean_interarrival<<endl;
-    cout<<a2.mean_service<<endl;
-    cout<<a2.num_delays_required<<endl;
-
-    int x=5;
-    for (int i=0; i<=100; i++)
-    cout<<exp_random(5)<<endl;
-    string files ="/home/eugenio/Downloads/mm12.in";
-    char s=',';
-    File x(files,s);
-    x.readfile();
-    x.print_list();
-    //x.print_lines();*/
     Queue_System q(1,0.5);
     q.simulate();
 }
