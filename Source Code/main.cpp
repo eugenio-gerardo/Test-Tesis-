@@ -1,13 +1,25 @@
 #include <iostream>
 #include <fstream>
-#include "random.h"
-
 #include <string>
 #include <sstream>
 #include <queue>
 #include <fstream>
+#include <cmath>
 
 using namespace std;
+
+double u_random()
+{
+    return double(rand())/RAND_MAX;
+}
+double u_random(double const &a, double const &b)
+{
+    return a + (b-a)*u_random();
+}
+double exp_random(double const &l)
+{
+    return -l*log(u_random());
+}
 
 struct QueueParameters {
    double  mean_interarrival;
@@ -172,12 +184,10 @@ class Queue_System
             this->custumer_queue.push(Custumer(this->interarrival_mean, this->sim_clock));
             if(this->server.isBusy())
             {
-                cout<<"if"<<endl;
                 this->queue_size++;
             }
             else
             {
-                cout<<"else"<<endl;
                 this->total_of_delays+=0;
                 this->num_cust_delayed++;
                 this->server.setStatus(Server_Status::BUSY);
@@ -232,7 +242,7 @@ class Queue_System
         }
         void simulate()
         {
-            debug();
+            debug("Init");
             while(!simulation_stop())
             {
                 this->update_counters();
