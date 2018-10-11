@@ -206,6 +206,7 @@ public:
                 this->num_cust_delayed++;
                 this->server.setStatus(Server_Status::BUSY);
                 this->custumer_queue.front().set_service_time(this->server.Generate_Service(this->sim_clock));
+                //this->custumer_queue.front().set_delay_time(this->sim_clock);
             }
     }
     void depart()
@@ -258,25 +259,26 @@ public:
             {
                 cout<<"Depart"<<endl;
             }
-        report();
+        //report();
+        cout<<"-----------------------------------------"<<endl;
         cout<<endl;
         //cin.get();
     }
     void simulate()
     {
-        debug("Init");
+        //debug("Init");
         while(!simulation_stop())
             {
  
                 if(this->custumer_queue.back().get_arrival_time()<this->custumer_queue.front().get_service_time())
                     {
                         this->arrive();
-                        debug("Arrive");
+                        //debug("Arrive");
                     }
                 else
                     {
                         this->depart();
-                        debug("Depart");
+                        //debug("Depart");
                     }
                 this->update_counters();
             }
@@ -284,6 +286,7 @@ public:
     }
     void report()
     {
+        debug("END");
         cout<<"Average Delay in Queue:"<<this->total_of_delays/this->num_cust_delayed<<endl;
         cout<<"Average Number in Queue:"<<this->area_num_inq/this->sim_clock<<endl;
         cout<<"Server  Utilization:"<<this->area_server_status/this->sim_clock<<endl;
@@ -292,6 +295,6 @@ public:
  
 int main()
 {
-    Queue_System q(1,1,99);
+    Queue_System q(1,.5,100000);
     q.simulate();
 }
