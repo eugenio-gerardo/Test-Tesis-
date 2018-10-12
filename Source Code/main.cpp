@@ -79,6 +79,7 @@ public:
 };
  
 enum class Server_Status {IDLE, BUSY};
+enum class Queue_Event:char {ARRIVE='A', DEPART='D', INIT='I', END='E'};
  
 class Server
 {
@@ -145,37 +146,51 @@ public:
 class Queue_System
 {
 private:
-    int queue_size;
-    queue<Custumer> custumer_queue;
-    Server server;
-    double sim_clock;
+    //state variables
+    int event;
     double sim_clock_previous;
+    double sim_clock;
     double d_sim_clock;
-    double interarrival_mean;
-    //Statical Counters
-    double num_cust_delayed;
+    Queue_Event q_event;
+    int queue_size;
     double total_of_delays;
+    double num_cust_delayed;
+    Queue_Event next_q_event;
+    //queue parameters    
+    double service_mean;
+    double interarrival_mean;
+    int limit_queue_size;
+    //queue elements
+    queue<Custumer> custumer_queue;
+    Server server;       
+    //statical Counters    
     double area_num_inq;
     double area_server_status;
-    int limit_queue_size;
-    int event;
- 
 public:
     Queue_System(double interarrival_mean, double service_mean, int limit_queue_size)
     {
-        this->server=Server(service_mean);
+        //state variables
+        this->event=1;
         this->sim_clock_previous=0;
-        this->interarrival_mean=interarrival_mean;
-        custumer_queue.push(Custumer(this->interarrival_mean, this->sim_clock));
-        this->queue_size=0;
         this->sim_clock=0;
         this->d_sim_clock=this->sim_clock;
-        this->num_cust_delayed=0;
+        this->q_event=Queue_Event::INIT;
+        this->queue_size=0;
         this->total_of_delays=0;
+        this->num_cust_delayed=0;
+        this->next_q_event=Queue_Event::ARRIVE;
+        //queue parameters
+        this->interarrival_mean=interarrival_mean;
+        this->service_mean=service_mean;
+        this->limit_queue_size=limit_queue_size;
+        //init queue elements
+        this->custumer_queue.push(Custumer(this->interarrival_mean, this->sim_clock));
+        this->server=Server(this->service_mean);
+        //statical counters
         this->area_num_inq=0;
         this->area_server_status=0;
-        this->event=1;
-        this->limit_queue_size=limit_queue_size;
+        
+        cout<<this->h_string()<<endl;
     }
     bool simulation_stop()
     {
@@ -194,6 +209,8 @@ public:
     }
     void arrive()
     {
+        this->event++;
+        this->q_event=Queue_Event::ARRIVE;
         update_sim_clock(this->custumer_queue.back().get_arrival_time());
         this->custumer_queue.push(Custumer(this->interarrival_mean, this->sim_clock));
         if(this->server.isBusy())
@@ -211,6 +228,8 @@ public:
     }
     void depart()
     {
+        this->event++;
+        this->q_event=Queue_Event::DEPART;
         update_sim_clock(this->custumer_queue.front().get_service_time());
         if(this->queue_size==0)
             {
@@ -227,13 +246,13 @@ public:
                 this->custumer_queue.front().set_delay_time(this->sim_clock);
             }
     }
-    void debug(string q_event)
+    void debug()
     {
         cout<<"Event Number:"<<this->event++<<endl;
         cout<<"Simulation Time Previous:"<<this->sim_clock_previous<<endl;
         cout<<"Simulation Time:"<<this->sim_clock<<endl;
         cout<<"Delta Simulation Time:"<<this->d_sim_clock<<endl;
-        cout<<"Event:"<<q_event<<endl;
+        cout<<"Event:"<<static_cast<char>(this->q_event)<<endl;
         cout<<"Server Status:"<<server.isBusy()<<endl;
         cout<<"Queue  Size:"<<this->queue_size<<endl;
         auto custumer_queue_aux=this->custumer_queue;
@@ -259,34 +278,68 @@ public:
             {
                 cout<<"Depart"<<endl;
             }
-        //report();
         cout<<"-----------------------------------------"<<endl;
         cout<<endl;
         //cin.get();
     }
+    string h_string()
+    {
+        return "Event Number\tSimulation Time Previous\tSimulation Time\tDelta Simulation Time\tEvent\tServer Status\tQueue Size\tTotal Delay\tNum Cust Delayed\tNext Arrive\tNext Depart\tNext Event";
+    }
+    string r_string()
+    {
+        string r = to_string(this->event) + "\t"
+        + to_string(this->sim_clock_previous) + "\t"
+        + to_string(this->sim_clock) + "\t"
+        + to_string(this->d_sim_clock) + "\t"
+        + static_cast<char>(this->q_event) + "\t"
+        + to_string(this->server.isBusy()) + "\t"
+        + to_string(this->queue_size) + "\t"
+        + to_string(this->total_of_delays) + "\t"
+        + to_string(this->num_cust_delayed) + "\t"
+        + to_string(this->custumer_queue.back().get_arrival_time()) + "\t"
+        + to_string(this->custumer_queue.front().get_service_time()) + "\t"
+        + static_cast<char>(this->next_q_event);
+        return r;
+    }
+    void next_event()
+    {
+        if (this->custumer_queue.back().get_arrival_time()<this->custumer_queue.front().get_service_time())
+            {
+                this->next_q_event= Queue_Event::ARRIVE;
+            }
+        else
+            {
+                this->next_q_event= Queue_Event::DEPART;
+            }
+    }
     void simulate()
     {
-        //debug("Init");
+        this->q_event=Queue_Event::INIT;
+        cout<<this->r_string()<<endl;
         while(!simulation_stop())
             {
- 
-                if(this->custumer_queue.back().get_arrival_time()<this->custumer_queue.front().get_service_time())
+                 if(this->next_q_event==Queue_Event::ARRIVE)
                     {
                         this->arrive();
-                        //debug("Arrive");
                     }
                 else
                     {
                         this->depart();
-                        //debug("Depart");
                     }
                 this->update_counters();
+                this->next_event();
+                cout<<this->r_string()<<endl;
             }
         this->report();
     }
     void report()
     {
-        debug("END");
+        this->q_event=Queue_Event::END;
+        cout<<this->r_string()<<endl;
+        cout<<"Interarrival mean:"<<this->interarrival_mean<<endl;
+        cout<<"Service mean:"<<this->service_mean<<endl;
+        cout<<"Limit size:"<<this->limit_queue_size<<endl;
         cout<<"Average Delay in Queue:"<<this->total_of_delays/this->num_cust_delayed<<endl;
         cout<<"Average Number in Queue:"<<this->area_num_inq/this->sim_clock<<endl;
         cout<<"Server  Utilization:"<<this->area_server_status/this->sim_clock<<endl;
@@ -295,6 +348,6 @@ public:
  
 int main()
 {
-    Queue_System q(1,.5,100000);
+    Queue_System q(1.0,.5,1000);
     q.simulate();
 }
