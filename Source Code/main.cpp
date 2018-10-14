@@ -6,9 +6,9 @@
 #include <fstream>
 #include <cmath>
 #include<stdlib.h>
- 
+
 using namespace std;
- 
+
 double u_random()
 {
     return double(rand())/RAND_MAX;
@@ -21,14 +21,55 @@ double exp_random(double const &l)
 {
     return -l*log(u_random());
 }
- 
+
 struct QueueParameters
 {
     double  mean_interarrival;
     double  mean_service;
     int num_delays_required;
 };
- 
+
+queue<double> A;
+queue<double> S;
+
+void set_A()
+{
+    A.push(.4);
+    A.push(1.2);
+    A.push(.5);
+    A.push(1.7);
+    A.push(.2);
+    A.push(1.6);
+    A.push(.2);
+    A.push(1.4);
+    A.push(1.9);
+}
+
+void set_S()
+{
+    S.push(2.0);
+    S.push(.7);
+    S.push(.2);
+    S.push(1.1);
+    S.push(3.7);
+    S.push(0.6);
+    S.push(100.0);
+}
+
+double next_arrive()
+{
+    double x=A.front();
+    A.pop();
+    return x;
+}
+
+double next_service()
+{
+    double x=S.front();
+    S.pop();
+    return x;
+}
+
 class File
 {
 private:
@@ -77,10 +118,49 @@ public:
             }
     }
 };
- 
+
+class Log
+{
+    private:
+        ofstream l_file;
+        char separator;
+        string f_name;
+        int counter;
+        vector<string>header;
+    public:
+        Log(){};
+        Log(string f_name, char separator, vector<string> header)
+        {
+            this->f_name=f_name;
+            this->l_file=ofstream(f_name);
+            this->separator=separator;
+            this->log_line(header);
+            this->counter=0;
+            this->header=header;
+        }
+
+        void log_line(vector<string> v_line)
+        {
+            this->counter++;
+            string s_line="";
+            for(auto x:v_line)
+            {
+                s_line+=x;
+                s_line+=this->separator;
+            }
+            s_line.erase(s_line.end()-1);
+            l_file<<s_line<<endl;
+        }
+        bool check()
+        {
+            return this->counter==500000;
+        }
+
+};
+
 enum class Server_Status {IDLE, BUSY};
 enum class Queue_Event:char {ARRIVE='A', DEPART='D', INIT='I', END='E'};
- 
+
 class Server
 {
 private:
@@ -95,7 +175,8 @@ public:
     }
     double Generate_Service (double time)
     {
-        return time+exp_random(this->mean_service);
+        //double x=next_service();
+        return time+exp_random(this->mean_service);//x;
     }
     bool isBusy()
     {
@@ -105,9 +186,9 @@ public:
     {
         this->status=status;
     }
- 
+
 };
- 
+
 class Custumer
 {
 private:
@@ -117,8 +198,8 @@ private:
 public:
     Custumer(double interarrival_mean, double time)
     {
-        this->arrival_time=time+exp_random(interarrival_mean);
-        this->service_time=1000000;
+        this->arrival_time=time+exp_random(interarrival_mean);//next_arrive();//
+        this->service_time=10000000000000;
         this->delay_time=0;
     }
     void set_service_time(double service_time)
@@ -142,7 +223,7 @@ public:
         return this->delay_time;
     }
 };
- 
+
 class Queue_System
 {
 private:
@@ -156,21 +237,24 @@ private:
     double total_of_delays;
     double num_cust_delayed;
     Queue_Event next_q_event;
-    //queue parameters    
+    //queue parameters
     double service_mean;
     double interarrival_mean;
     int limit_queue_size;
     //queue elements
     queue<Custumer> custumer_queue;
-    Server server;       
-    //statical Counters    
+    Server server;
+    //statical Counters
     double area_num_inq;
     double area_server_status;
+
+    Log l;
+    string control;
 public:
     Queue_System(double interarrival_mean, double service_mean, int limit_queue_size)
     {
         //state variables
-        this->event=1;
+        this->event=0;
         this->sim_clock_previous=0;
         this->sim_clock=0;
         this->d_sim_clock=this->sim_clock;
@@ -189,8 +273,11 @@ public:
         //statical counters
         this->area_num_inq=0;
         this->area_server_status=0;
-        
-        cout<<this->h_string()<<endl;
+
+        this->l=Log("qlog.csv",',', this->h_vector());
+        this->control="";
+        this->q_event=Queue_Event::INIT;
+        this->l.log_line(this->r_vector());
     }
     bool simulation_stop()
     {
@@ -198,14 +285,15 @@ public:
     }
     void update_counters()
     {
+        this->d_sim_clock=this->sim_clock-this->sim_clock_previous;
+        this->sim_clock_previous=this->sim_clock;
         this->area_num_inq+=(this->queue_size)*this->d_sim_clock;
         this->area_server_status+=this->server.isBusy()*this->d_sim_clock;
     }
     void update_sim_clock(double time)
     {
-        this->sim_clock_previous=this->sim_clock;
         this->sim_clock=time;
-        this->d_sim_clock=this->sim_clock-this->sim_clock_previous;
+        this->update_counters();
     }
     void arrive()
     {
@@ -223,7 +311,6 @@ public:
                 this->num_cust_delayed++;
                 this->server.setStatus(Server_Status::BUSY);
                 this->custumer_queue.front().set_service_time(this->server.Generate_Service(this->sim_clock));
-                //this->custumer_queue.front().set_delay_time(this->sim_clock);
             }
     }
     void depart()
@@ -239,17 +326,17 @@ public:
         else
             {
                 this->queue_size--;
-                this->total_of_delays+=this->custumer_queue.front().get_delay_time();
                 this->num_cust_delayed++;
                 this->custumer_queue.pop();
                 this->custumer_queue.front().set_service_time(this->server.Generate_Service(this->sim_clock));
                 this->custumer_queue.front().set_delay_time(this->sim_clock);
+                this->total_of_delays+=this->custumer_queue.front().get_delay_time();
             }
     }
     void debug()
     {
-        cout<<"Event Number:"<<this->event++<<endl;
-        cout<<"Simulation Time Previous:"<<this->sim_clock_previous<<endl;
+        cout<<"Event Number:"<<this->event<<endl;
+        cout<<"Simulation Time Previous:"<<this->sim_clock_previous-this->d_sim_clock<<endl;
         cout<<"Simulation Time:"<<this->sim_clock<<endl;
         cout<<"Delta Simulation Time:"<<this->d_sim_clock<<endl;
         cout<<"Event:"<<static_cast<char>(this->q_event)<<endl;
@@ -278,29 +365,47 @@ public:
             {
                 cout<<"Depart"<<endl;
             }
+        cout<<"Number Delayed:"<<this->num_cust_delayed<<endl;
+        cout<<"Total Delay:"<<this->total_of_delays<<endl;
+        cout<<"Area under Q(t):"<<this->area_num_inq<<endl;
+        cout<<"Area under B(t):"<<this->area_server_status<<endl;
         cout<<"-----------------------------------------"<<endl;
         cout<<endl;
         //cin.get();
     }
-    string h_string()
+    vector<string> h_vector()
     {
-        return "Event Number\tSimulation Time Previous\tSimulation Time\tDelta Simulation Time\tEvent\tServer Status\tQueue Size\tTotal Delay\tNum Cust Delayed\tNext Arrive\tNext Depart\tNext Event";
+        vector<string> header;
+        header.push_back("Event Number");
+        header.push_back("Simulation Time Previous");
+        header.push_back("Simulation Time");
+        header.push_back("Delta Simulation Time");
+        header.push_back("Event");
+        header.push_back("Server Status");
+        header.push_back("Queue Size");
+        header.push_back("Total Delay");
+        header.push_back("Num Cust Delayed");
+        header.push_back("Next Arrive");
+        header.push_back("Next Depart");
+        header.push_back("Next Event");
+        return header;
     }
-    string r_string()
+    vector<string> r_vector()
     {
-        string r = to_string(this->event) + "\t"
-        + to_string(this->sim_clock_previous) + "\t"
-        + to_string(this->sim_clock) + "\t"
-        + to_string(this->d_sim_clock) + "\t"
-        + static_cast<char>(this->q_event) + "\t"
-        + to_string(this->server.isBusy()) + "\t"
-        + to_string(this->queue_size) + "\t"
-        + to_string(this->total_of_delays) + "\t"
-        + to_string(this->num_cust_delayed) + "\t"
-        + to_string(this->custumer_queue.back().get_arrival_time()) + "\t"
-        + to_string(this->custumer_queue.front().get_service_time()) + "\t"
-        + static_cast<char>(this->next_q_event);
-        return r;
+        vector<string> row;
+        row.push_back(to_string(this->event));
+        row.push_back(to_string(this->sim_clock_previous-this->d_sim_clock));
+        row.push_back(to_string(this->sim_clock));
+        row.push_back(to_string(this->d_sim_clock));
+        row.push_back((static_cast<char>(this->q_event)=='A') ? "ARRIVE":"DEPART");
+        row.push_back(to_string(this->server.isBusy()));
+        row.push_back(to_string(this->queue_size));
+        row.push_back(to_string(this->total_of_delays));
+        row.push_back(to_string(this->num_cust_delayed));
+        row.push_back(to_string(this->custumer_queue.back().get_arrival_time()));
+        row.push_back(to_string(this->custumer_queue.front().get_service_time()));
+        row.push_back((static_cast<char>(this->next_q_event)=='A')? "ARRIVE":"DEPART");
+        return row;
     }
     void next_event()
     {
@@ -315,11 +420,9 @@ public:
     }
     void simulate()
     {
-        this->q_event=Queue_Event::INIT;
-        cout<<this->r_string()<<endl;
         while(!simulation_stop())
             {
-                 if(this->next_q_event==Queue_Event::ARRIVE)
+                if(this->next_q_event==Queue_Event::ARRIVE)
                     {
                         this->arrive();
                     }
@@ -327,16 +430,26 @@ public:
                     {
                         this->depart();
                     }
-                this->update_counters();
                 this->next_event();
-                cout<<this->r_string()<<endl;
+                this->log();
             }
         this->report();
     }
+    void log()
+    {
+        if(this->l.check())
+        {
+            this->control+="x";
+            this->l=Log("qlog"+control+".csv",',', this->h_vector());
+            this->l.log_line(this->r_vector());
+        }
+        else
+        {
+            this->l.log_line(this->r_vector());
+        }
+    }
     void report()
     {
-        this->q_event=Queue_Event::END;
-        cout<<this->r_string()<<endl;
         cout<<"Interarrival mean:"<<this->interarrival_mean<<endl;
         cout<<"Service mean:"<<this->service_mean<<endl;
         cout<<"Limit size:"<<this->limit_queue_size<<endl;
@@ -345,9 +458,12 @@ public:
         cout<<"Server  Utilization:"<<this->area_server_status/this->sim_clock<<endl;
     }
 };
- 
+
 int main()
 {
-    Queue_System q(1.0,.5,1000);
+
+        set_A();
+        set_S();
+    Queue_System q(1.0,.5,1000000);
     q.simulate();
 }
